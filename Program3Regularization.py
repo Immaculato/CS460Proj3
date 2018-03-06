@@ -16,15 +16,17 @@ class PolynomialRegression:
     cost = 0.0
     figureIndex = 0
     iterationCount = 0
+    penalty = 0.0
     #list containing tuples for data
     ratings = list()
     #list containing weights for data
     weights = list()
 
-    def __init__(self, order, alpha, fileContents, debug):
+    def __init__(self, order, alpha, penalty, fileContents, debug):
         self.order = order
         self.alpha = alpha
         self.debug = debug
+        self.penalty = penalty
         #for each line in the training file, parse out the line.
         for line in fileContents:
             parsedLine = line.rstrip().split(',')
@@ -65,6 +67,8 @@ class PolynomialRegression:
         for j in range(self.order+1):
             for i in range(numRatings): 
                 jSum += (1.0/numRatings) * (self.__hypothesis(self.ratings[i][0]) - self.ratings[i][1]) * (self.ratings[i][0]**j)
+            #add in penalty term
+            jSum+=(self.penalty*self.weights[j])
             #if the parameter change is small, note that it's small. 
             if abs(jSum) < 0.01:
                 numSmallChanges+=1
@@ -93,6 +97,8 @@ class PolynomialRegression:
         cost = 0.0
         for i in range(numRatings):
             cost+= (1.0/(2*numRatings)) * ((self.__hypothesis(self.ratings[i][0]) - self.ratings[i][1])**2)
+        #add in penalty term
+        cost+=(self.penalty/2)*(self.__vectorMagnitude(self.weights)**2)
         return cost
 
     def meanSquaredError(self):
@@ -104,7 +110,13 @@ class PolynomialRegression:
         meanSquaredError = meanSquaredError/numRatings
         return meanSquaredError
 
-    def printChart(self, chartName, order):
+    def __vectorMagnitude(self, vector):
+        sumTot = 0.0
+        for term in vector:
+            sumTot+=term**2
+        return sumTot**0.5
+
+    def printChart(self, chartName, order, penalty):
 
         #split out the features from the tuples into lists
         valueLists = list()
@@ -125,7 +137,7 @@ class PolynomialRegression:
         for i in range(len(xValues)):
             yHypothesis.append(self.__hypothesis(xValues[i]))
         plt.plot(xValues, yHypothesis, 'k')
-        plt.title('Dataset: '+chartName+', Order = '+str(order))
+        plt.title('Dataset with L2 regularization: '+chartName+', Order = '+str(order)+', Lambda = '+str(penalty))
         plt.xlabel('X')
         plt.ylabel('Y')
 
@@ -136,11 +148,12 @@ class PolynomialRegression:
 
 
 def main():
-    if (len(sys.argv) != 3):
-        print "Takes two command line arguments: the name of the training file, and the order."
+    if (len(sys.argv) != 4):
+        print "Takes three command line arguments: the name of the training file, the order, and the L2 regularization penalty."
         exit(-1)
     trainingFilename = sys.argv[1]
     order = int(sys.argv[2])
+    penalty = float(sys.argv[3])
 
     #try to open the training file, and populate the array of lines.
     fileContents = list()
@@ -152,9 +165,9 @@ def main():
         print('training file not found')
         exit -1
 
-    regressionObject = PolynomialRegression(order, 1, fileContents, debug=True)
+    regressionObject = PolynomialRegression(order, 1, penalty, fileContents, debug=True)
     print 'Mean squared error for', trainingFilename, 'Order', order, regressionObject.meanSquaredError()
     print 'Weights', regressionObject.getWeights()
-    regressionObject.printChart(trainingFilename, order)
+    regressionObject.printChart(trainingFilename, order, penalty)
 
 main()
