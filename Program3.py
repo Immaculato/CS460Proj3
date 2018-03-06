@@ -1,19 +1,18 @@
 #Tristan Basil
 #Assignment: Project 3 - cS460G Machine Learning, Dr. Harrison
-#https://stackoverflow.com/questions/3282823/get-the-key-corresponding-to-the-minimum-value-within-a-dictionary -
-#used to find corresponding key to min value in a dictionary
-#https://stackoverflow.com/questions/26584003/output-to-the-same-line-overwriting-previous
-#used to print progress
 
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
-import copy
+
+#https://stackoverflow.com/questions/3777861/setting-y-axis-limit-in-matplotlib
+#for settings axes on charts
+#
 
 #this class is only designed to work for the data in this project.
 class PolynomialRegression:
     debug = False
-    degree = 0
+    order = 0
     alpha = 0.0
     cost = 0.0
     figureIndex = 0
@@ -23,39 +22,38 @@ class PolynomialRegression:
     #list containing weights for data
     weights = list()
 
-    #initialization takes a filename.
-    def __init__(self, degree, alpha, fileContents, debug):
-        self.degree = degree
+    def __init__(self, order, alpha, fileContents, debug):
+        self.order = order
         self.alpha = alpha
         self.debug = debug
-        #get all the ratings for each user.
+        #for each line in the training file, parse out the line.
         for line in fileContents:
-            #print(line.rstrip())
             parsedLine = line.rstrip().split(',')
-            #cast to float
             parsedLine[0] = float(parsedLine[0])
             parsedLine[1] = float(parsedLine[1])
-            #mark the distinct movie indexes and user indexes.
             self.ratings.append(parsedLine)
 
         #initialize weights to 0.5 arbitrarily
-        for i in range(self.degree+1):
+        for i in range(self.order+1):
             self.weights.append(0.0)
 
-        #print(self.__hypothesis(0.5))
+        #get the initial cost and start using gradient descent.
         self.cost = self.__cost()
         isGradientDescentFinished = False
+        #while not finished with gradient descent,
         while not isGradientDescentFinished:
+            #keep doing iterations of gradient descent.
             self.iterationCount+=1
             isGradientDescentFinished = self.__gradientDescent()
-            #if self.iterationCount % 1000 == 0:
-            #    print self.iterationCount
+            if self.debug and self.iterationCount % 1000 == 0:
+                print 'Cost at iteration', self.iterationCount, '-', self.__cost()
+            #if we hit the iteration limit, just stop early. it would converge if we let it, though.
             if self.iterationCount > 100000:
                 isGradientDescentFinished = True
 
     def __hypothesis(self, x):
         hypothesisTot = 0.0
-        for i in range(self.degree+1):
+        for i in range(self.order+1):
             hypothesisTot+=self.weights[i]*(x**i)
         return hypothesisTot
 
@@ -64,43 +62,33 @@ class PolynomialRegression:
         numRatings = len(self.ratings)
         jSum = 0.0
         numSmallChanges = 0
-        for j in range(self.degree+1):
+        #for every order and rating, sum up the cost derivative with respect to that weight.
+        for j in range(self.order+1):
             for i in range(numRatings): 
                 jSum += (1.0/numRatings) * (self.__hypothesis(self.ratings[i][0]) - self.ratings[i][1]) * (self.ratings[i][0]**j)
-
             #if the parameter change is small, note that it's small. 
-            #print 'jSum', jSum
             if abs(jSum) < 0.01:
                 numSmallChanges+=1
-            
             newWeights.append(self.weights[j] - self.alpha*jSum)
 
-        if self.debug:
-            #print 'prev weights:', self.weights
-            print 'new weights:', newWeights
+        #if the new cost is worse, then change alpha and reset this iteration.
         oldWeights = self.weights
         self.weights = newWeights
-
-        #if all of our changes were very small, we're done.
-        #print numSmallChanges
-        #variable alpha
         newCost = self.__cost()
-        #print newCost
-        
         if newCost > self.cost:
             self.alpha = self.alpha * 0.5
-            print 'newalpha', self.alpha
+            if self.debug:
+                print 'New alpha:', self.alpha
             self.weights=oldWeights
             return False
         
-        #self.cost = newCost
-        
-
-        if numSmallChanges == self.degree+1:
+        #if all weight changes are small, we're done!
+        if numSmallChanges == self.order+1:
             return True
         else:
             return False
 
+    #in hindsight, this is almost the exact same as mean squared error but is implemented differently.
     def __cost(self):
         numRatings = len(self.ratings)
         cost = 0.0
@@ -110,18 +98,14 @@ class PolynomialRegression:
 
     def meanSquaredError(self):
         meanSquaredError = 0.0
-        index = 0
-        iteration = 0
         numRatings = len(self.ratings)
         for i in range(numRatings):
             prediction = self.__hypothesis(self.ratings[i][0])
             meanSquaredError += ((prediction - self.ratings[i][1]) ** 2)
-        #print 'a', meanSquaredError, numRatings
         meanSquaredError = meanSquaredError/numRatings
         return meanSquaredError
 
-    def printChart(self, chartName, degree):
-        #plt.figure(figureIndex)
+    def printChart(self, chartName, order):
 
         #split out the features from the tuples into lists
         valueLists = list()
@@ -134,14 +118,15 @@ class PolynomialRegression:
         plt.scatter(valueLists[0], valueLists[1], zorder=15)
         plt.hold(True)
 
-        t1 = np.arange(min(valueLists[0]), max(valueLists[0]), 0.02)
-        t2 = list()
-        for i in range(len(t1)):
-            t2.append(self.__hypothesis(t1[i]))
-        #print t1
-        #print t2
-        plt.plot(t1, t2, 'k')
-        plt.title('Dataset: '+chartName+', Degree = '+str(degree))
+        xValues = np.arange(min(valueLists[0])-0.5, max(valueLists[0])+0.5, 0.02)
+        yHypothesis = list()
+        axes = plt.gca()
+        axes.set_xlim(min(valueLists[0])-0.5, max(valueLists[0])+0.5)
+        axes.set_ylim(min(valueLists[1])-0.5, max(valueLists[1])+0.5)
+        for i in range(len(xValues)):
+            yHypothesis.append(self.__hypothesis(xValues[i]))
+        plt.plot(xValues, yHypothesis, 'k')
+        plt.title('Dataset: '+chartName+', Order = '+str(order))
         plt.xlabel('X')
         plt.ylabel('Y')
 
@@ -152,10 +137,11 @@ class PolynomialRegression:
 
 
 def main():
-    if (len(sys.argv) != 2):
-        print "Takes one command line argument: the name of the training file, the test file, and optionally, the -cv flag to cross validate."
+    if (len(sys.argv) != 3):
+        print "Takes two command line arguments: the name of the training file, and the order."
         exit(-1)
     trainingFilename = sys.argv[1]
+    order = int(sys.argv[2])
 
     #try to open the training file, and populate the array of lines.
     fileContents = list()
@@ -166,13 +152,10 @@ def main():
     except:
         print('training file not found')
         exit -1
-    #7.8125e-05
-    #0.01
-    degrees = {9}
-    for degree in degrees:
-        regressionObject = PolynomialRegression(degree, 1, fileContents, debug=False)
-        print 'Mean squared error for', trainingFilename, 'Degree', degree, regressionObject.meanSquaredError()
-        print 'Weights', regressionObject.getWeights()
-        regressionObject.printChart(trainingFilename, degree)
+
+    regressionObject = PolynomialRegression(order, 1, fileContents, debug=True)
+    print 'Mean squared error for', trainingFilename, 'Order', order, regressionObject.meanSquaredError()
+    print 'Weights', regressionObject.getWeights()
+    regressionObject.printChart(trainingFilename, order)
 
 main()
